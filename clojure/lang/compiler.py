@@ -8,7 +8,9 @@ import sys
 import time
 import fractions
 
+
 from clojure.util.treadle import treadle as tr
+from clojure.util.util import *
 
 from clojure.lang.cons import Cons
 from clojure.lang.cljexceptions import CompilerException, AbstractMethodCall
@@ -457,6 +459,12 @@ def compileDo(comp, form):
     return compileImplcitDo(comp, form.next())
 
 
+def resolveTrLocal(aliases, local):
+    s = symbol(local)
+    if s not in aliases:
+        raise Exception("Could not resolve closure " + local)
+    return aliases[s]
+
 def compileFn(comp, name, form, orgform):
     locals, args, lastisargs, argsname = unpackArgs(form.first())
 
@@ -470,13 +478,15 @@ def compileFn(comp, name, form, orgform):
             comp.pushAlias(symbol(x), arg)
             trargs.append(arg)
 
+        resolved = partial(resolveTrLocal, comp.aliases)
+
         if lastisargs:
             expr = tr.Do(cleanRest(comp.getAlias(argsname)),
                          compileImplcitDo(comp, form.next()))
         else:
             expr = compileImplcitDo(comp, form.next())
 
-        return tr.Func(trargs, expr)
+        return tr.Func(trargs, expr, resolved)
 
 
 def cleanRest(local):

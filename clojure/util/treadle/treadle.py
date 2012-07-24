@@ -4,6 +4,7 @@ import struct
 
 from .treadle_exceptions import *
 from .compat import version, newCode, SEEK_END, CondJump, AbsoluteJump
+from clojure.util.util import flatten, walk
 
 from copy import copy
 
@@ -17,13 +18,14 @@ for x in dis.opmap:
 
 
 
+
 class AExpression(object):
     """defines a abstract expression subclass this to create new expressions"""
     def __init__(self):
         pass
 
     def toCode(self):
-
+        print "----"
         expr = self
 
         locals = {}
@@ -80,28 +82,33 @@ class AExpression(object):
             names[v] = k
         names = tuple(names)
 
-        freevars = [None] * (len(ctx.freevars))
-        for k, v in list(ctx.freevars.items()):
-            freevars[v] = k.name
+
+
+        freevars = []
+        idx = len(ctx.freevars)
+        for x in ctx.freevars:
+            x.markIdx(idx, ctx)
+            freevars.append(x.name)
         freevars = tuple(freevars)
+
 
         self.isClosure = False
         if freevars:
             self.isClosure = True
             co_flags ^= CO_NOFREE
-
+        print freevars, "freevars", ctx.cellvars, "cellvars"
         c = newCode(co_code = code, co_stacksize = max_seen, co_consts = consts, co_varnames = varnames,
                     co_argcount = argcount, co_nlocals = len(varnames), co_names = names, co_flags = co_flags,
-                    co_freevars = freevars)
+                    co_freevars = freevars, co_cellvars = tuple(ctx.cellvars))
         import dis
         dis.dis(c)
         print("---")
-        return c, ctx.freevars
+        return c
 
     def toFunc(self, globals = None):
         if globals is None:
             globals = {}
-        c, f = self.toCode()
+        c = self.toCode()
         return types.FunctionType(c, globals)
 
     def __getattr__(self, name):
@@ -120,6 +127,23 @@ class AExpression(object):
 
         return consFunc
 
+    def __iter__(self):
+        raise StopIteration()
+
+
+
+
+def markupClosures(ctx, expr):
+    closures = filter(lambda x: isinstance(x, Closure), flatten(iter, expr))
+    cellvars = sorted(filter(lambda x:  isinstance(x, Closure), closures))
+    freevars = []
+
+    closures = list(cellvars + freevars)
+
+    for idx in range(len(closures)):
+        closures[idx].markIdx(idx)
+
+    return closures
 
 def assertExpression(expr):
     if not isinstance(expr, AExpression):
@@ -154,7 +178,10 @@ class Return(AExpression):
     def __repr__(self):
         return "Return(" + repr(self.expr) + ")"
 
-valid_const_types = {str, int, float, bool, type(None), type(type), types.CodeType}
+    def __iter__(self):
+        yield self.expr
+
+valid_const_types = {str, int, float, bool, type(None), type(type), types.CodeType, unicode}
 
 class Const(AExpression):
     """defines a constant that will generate a LOAD_CONST bytecode. Note: Const objects
@@ -186,6 +213,9 @@ class Const(AExpression):
     def __repr__(self):
         return "Const(" + repr(self.value) + ": " + repr(type(self.value).__name__) + ")"
 
+    def __iter__(self):
+        raise StopIteration()
+
 class StoreLocal(AExpression):
     def __init__(self, local, expr):
         self.local = local
@@ -204,6 +234,10 @@ class StoreLocal(AExpression):
         self.expr.emit(ctx)
 
         ctx.stream.write(struct.pack("=BBH", DUP_TOP, STORE_FAST, idx))
+
+    def __iter__(self):
+        yield self.local
+        yield self.expr
 
 
 class If(AExpression):
@@ -245,6 +279,11 @@ class If(AExpression):
 
         endofif.mark()
 
+    def __iter__(self):
+        yield self.condition
+        yield self.thenexpr
+        yield self.elseexpr
+
 
 class ABinaryOp(AExpression):
     def __init__(self, a, b, op):
@@ -262,6 +301,10 @@ class ABinaryOp(AExpression):
         self.a.emit(ctx)
         self.b.emit(ctx)
         ctx.stream.write(struct.pack("=B", self.op))
+
+    def __iter__(self):
+        yield self.a
+        yield self.b
 
 
 
@@ -307,9 +350,13 @@ class Do(AExpression):
             if last is not x:
                 ctx.stream.write(struct.pack("=B", POP_TOP))
 
+    def __iter__(self):
+        for x in self.exprs:
+            yield x
+
 class Local(AExpression, IAssignable):
     def __init__(self, name):
-        assert isinstance(name, str)
+        assert isinstance(name, (str, unicode))
         self.name = name
 
     def size(self, current, max_count):
@@ -324,29 +371,32 @@ class Local(AExpression, IAssignable):
 
         ctx.stream.write(struct.pack("=BH", LOAD_FAST, idx))
 
+    def __iter__(self):
+        raise StopIteration()
+
 class Closure(Local, IAssignable):
     def __init__(self, name, src):
         assertExpression(src)
         self.name = name
         self.src = src
+        self.locs = []
+
+    def markIdx(self, idx, ctx):
+        for x in self.locs:
+            ctx.stream.seek(x)
+            ctx.stream.write(struct.pack("=BH", LOAD_DEREF, idx))
+        ctx.stream.seek(0, SEEK_END)
+
+
 
     def emit(self, ctx):
+        self.locs.append(ctx.stream.tell())
+        ctx.stream.write(struct.pack("=BH", LOAD_DEREF, 0))
+        ctx.freevars[self] = self
 
-        if self not in ctx.freevars:
-            ctx.freevars[self] = len(ctx.freevars)
-
-        idx = ctx.freevars[self]
-
-        ctx.stream.write(struct.pack("=BH", LOAD_DEREF, idx))
 
     def emitPreamble(self, ctx):
-        if self not in ctx.freevars:
-            ctx.freevars[self] = len(ctx.freevars)
-
-        idx = ctx.freevars[self]
-
         self.src.emit(ctx)
-        ctx.stream.write(struct.pack("=BHBH", STORE_DEREF, idx, LOAD_CLOSURE, idx))
 
     def __repr__(self):
         return "Closure(" + repr(self.src) + ", " + self.name + ")"
@@ -417,8 +467,17 @@ class Call(AExpression):
     def __repr__(self):
         return "Call(" + repr(self.method) + ", -> " + ", ".join(map(repr, self.exprs)) + ")"
 
+    def __iter__(self):
+        yield self.method
+        for x in self.exprs:
+            yield x
+
 class Func(AExpression):
-    def __init__(self, args, expr):
+    def __init__(self, args, expr, resolver = None):
+        if resolver == None:
+            resolver = lambda x: None
+        self.resolver = resolver
+
         for x in args:
             if not isinstance(x, Argument):
                 raise ArgumentExpressionRequiredException()
@@ -436,16 +495,28 @@ class Func(AExpression):
         current += 1
         return current, max(max_seen, current)
 
-    def emit(self, ctx):
+    def freeze(self):
         if self.value is None:
-            self.code, self.usedFreeVars = self.toCode()
+            self.code = self.toCode()
             self.value = Const(self.code)
 
-        print self.usedFreeVars
-        if self.usedFreeVars:
-            for x in self.usedFreeVars:
-                x.emitPreamble(ctx)
-            ctx.stream.write(struct.pack("=BH", BUILD_TUPLE, len(ctx.freevars)))
+            self.freeVars = self.code.co_freevars
+
+
+    def emit(self, ctx):
+        self.freeze()
+
+        if self.freeVars:
+            for x in self.freeVars:
+                idx = len(ctx.cellvars)
+                ctx.cellvars.append(x)
+                resolved = self.resolver(x)
+                assert resolved
+
+                resolved.emitPreamble(ctx)
+                ctx.stream.write(struct.pack("=BHBH", STORE_DEREF, idx, LOAD_CLOSURE, idx))
+
+            ctx.stream.write(struct.pack("=BH", BUILD_TUPLE, len(self.freeVars)))
             self.value.emit(ctx)
             ctx.stream.write(struct.pack("=BH", MAKE_CLOSURE, 0))
         else:
@@ -455,6 +526,8 @@ class Func(AExpression):
     def __repr__(self):
         return "Func(" + repr(map(repr, self.args)) + " -> " + repr(self.expr) + " | " + repr(self.flags) + ")"
 
+    def __iter__(self):
+        yield self.expr
 
 class Recur(AExpression):
     def __init__(self, *args):
@@ -477,6 +550,10 @@ class Recur(AExpression):
 
         ctx.stream.write(struct.pack("=BH", JUMP_ABSOLUTE, ctx.recurPoint.offset))
 
+    def __iter__(self):
+        for x in args:
+            yield x
+
 
 class AbstractBuilder(AExpression):
     """An expression that creates a tuple from the arguments"""
@@ -496,6 +573,10 @@ class AbstractBuilder(AExpression):
         for x in self.exprs:
             x.emit(ctx)
         ctx.stream.write(struct.pack("=BH", self.buildbc, len(self.exprs)))
+
+    def __iter__(self):
+        for x in self.exprs:
+            yield x
 
 class Dict(AExpression):
     """Builds a dict from the given expressions"""
@@ -555,6 +636,9 @@ class Attr(AExpression):
     def __repr__(self):
         return "Attr(" + self.name + ", " + repr(self.src) + ")"
 
+    def __iter__(self):
+        yield self.src
+
 
 class Compare(AExpression):
     def __init__(self, expr1, expr2, op):
@@ -575,6 +659,10 @@ class Compare(AExpression):
 
         ctx.stream.write(struct.pack("=BH", COMPARE_OP, self.op))
 
+    def __iter__(self):
+        yield self.expr1
+        yield self.expr2
+
 
 class Raise(AExpression):
     def __init__(self, expr):
@@ -590,6 +678,9 @@ class Raise(AExpression):
         self.expr.emit(ctx)
 
         ctx.stream.write(struct.pack("=BH", RAISE_VARARGS, 1))
+
+    def __iter__(self):
+        yield self.expr
 
 class Finally(AExpression):
     def __init__(self, body, final):
@@ -613,6 +704,10 @@ class Finally(AExpression):
         self.final.emit(ctx)
         ctx.stream.write(struct.pack("=BB", POP_TOP, END_FINALLY))
         endjmp.mark()
+
+    def __iter__(self):
+        yield self.body
+        yield self.final
 
 
 
@@ -668,6 +763,7 @@ class Context(object):
         self.recurPoint = recurPoint
         self.names = {}
         self.freevars = {}
+        self.cellvars = []
 
 
 
