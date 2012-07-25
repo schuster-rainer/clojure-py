@@ -92,9 +92,7 @@ class AExpression(object):
         freevars = tuple(freevars)
 
 
-        self.isClosure = False
-        if freevars:
-            self.isClosure = True
+        if freevars or ctx.cellvars:
             co_flags ^= CO_NOFREE
         print freevars, "freevars", ctx.cellvars, "cellvars"
         c = newCode(co_code = code, co_stacksize = max_seen, co_consts = consts, co_varnames = varnames,
@@ -218,6 +216,11 @@ class Const(AExpression):
 
 class StoreLocal(AExpression):
     def __init__(self, local, expr):
+        if isinstance(expr, (str, unicode)) and isinstance(local, AExpression):
+            v = local
+            local = expr
+            expr = v
+
         self.local = local
         self.expr = expr
     def size(self, current, max_seen):

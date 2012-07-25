@@ -188,6 +188,12 @@ def compileDef(comp, form):
     i = getAttrChain("clojure.lang.var.intern")
     v = tr.Call(i, tr.Const(comp.getNS().__name__), tr.Const(sym.getName()))
 
+    # We just wrote some treadle code to define a var, but
+    # the compiler won't see that yet, so let's re-define the var now
+    # so that the compiler can pick it up
+
+    internVar(comp.getNS().__name__, sym.getName())
+
     #v.setDynamic(True)
     if len(form) == 3:
         code = tr.Call(tr.Attr(v, "bindRoot"),
@@ -530,9 +536,10 @@ class MultiFn(object):
             for x in self.locals:
                 comp.pushAlias(x, tr.Argument(x.getName()))
 
-            bodycode = compileImplcitDo(comp, body).Return()
 
+            bodycode = compileImplcitDo(comp, body).Return()
             self.argcode = argcode
+            self.extractcode = tr.Do(*argscode)
             self.bodycode = bodycode
 
 
@@ -553,11 +560,11 @@ def compileMultiFn(comp, name, form):
     if len(argdefs) == 1 and not argdefs[0].lastisargs:
         hasvararg = False
         argslist = argdefs[0].args
-        code.append(argdefs[0].bodycode)
+        code.append(tr.Do(argdefs[0].argcode, argdefs[0].bodycode))
     else:
         hasvararg = True
         for x in argdefs:
-            code.append(tr.If(x.argcode, x.bodycode))
+            code.append(tr.If(x.argcode, tr.Do(x.extractcode, x.bodycode)))
 
         code.append(tr.Global("Exception")
                       .Call(tr.Const("Bad Arity")
@@ -615,7 +622,8 @@ def compileFNStar(comp, form):
         else:
             expr = compileMultiFn(comp, name, form)
 
-
+        if pushed:
+            comp.popName()
 
         return expr
 

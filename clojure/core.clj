@@ -12,9 +12,6 @@
 
 ;;; preparing support for defn and defmacro
 
-(def foo (fn* [x] (fn* [] x)))
-
-
 (def unquote)
 (def unquote-splicing)
 
