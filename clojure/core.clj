@@ -3732,6 +3732,29 @@
   ([x] (Atom x))
   ([x & options] (setup-reference (atom x) options)))
 
+(require 'multiprocessing.pool)
+(def solo-executor (multiprocessing.pool/ThreadPool))
+
+(defn future-call 
+  "Takes a function of no args and yields a future object that will
+  invoke the function in another thread, and will cache the result and
+  return it on all subsequent calls to deref/@. If the computation has
+  not yet finished, calls to deref/@ will block."
+  {:added "1.1"}
+  [f]
+  (let [res (.apply_async solo-executor f)]
+    (reify
+      clojure.lang.ideref/IDeref
+       (deref [_] (.get res)))))
+
+(defmacro future
+  "Takes a body of expressions and yields a future object that will
+  invoke the body in another thread, and will cache the result and
+  return it on all subsequent calls to deref/@. If the computation has
+  not yet finished, calls to deref/@ will block."
+  {:added "1.1"}
+  [& body] `(future-call (fn* [] ~@body)))
+
 ;;; misc
 (defmacro declare
   "defs the supplied var names with no bindings, useful for making forward declarations."
