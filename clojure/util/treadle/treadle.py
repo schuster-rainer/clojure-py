@@ -113,12 +113,12 @@ class AExpression(object):
         """Map in every class in this module as a constructor so we can provide
         it as a fluent interface"""
         if name not in globals():
-            raise AttributeError("Can't find " + name)
+            raise AttributeError("Can't find " + name + " on " + str(self))
 
         c = globals()[name]
 
         if type(c) != type:
-            raise AttributeError("Can't find "+name)
+            raise AttributeError("Can't find " + name + " on " + str(self))
 
         def consFunc(*args):
             return c(self, *args)
@@ -216,11 +216,8 @@ class Const(AExpression):
 
 class StoreLocal(AExpression):
     def __init__(self, local, expr):
-        if isinstance(expr, (str, unicode)) and isinstance(local, AExpression):
-            v = local
-            local = expr
-            expr = v
-
+        assertAllExpressions([local, expr])
+        
         self.local = local
         self.expr = expr
     def size(self, current, max_seen):

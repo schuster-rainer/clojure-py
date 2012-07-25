@@ -496,8 +496,7 @@ def compileFn(comp, name, form, orgform):
 
 
 def cleanRest(local):
-    return tr.StoreLocal(local,
-                         getAttrChain("__builtin__.len")
+    return local.StoreLocal(getAttrChain("__builtin__.len")
                                     .Call(local)
                                     .Equal(tr.Const(0))
                                     .If(tr.Const(None), local))
@@ -519,22 +518,25 @@ class MultiFn(object):
 
             self.locals, self.args, self.lastisargs, self.argsname = unpackArgs(argv)
 
+            wlocals = map(lambda x: tr.Argument(x.getName()), self.locals)
+            
             argcode = tr.GreaterOrEqual(
                 tr.Call(getAttrChain("__builtin__.len"), argsv),
                 tr.Const(len(self.args) - (1 if self.lastisargs else 0)))
             argscode = []
-            for x in range(len(self.args)):
-                if self.lastisargs and x == len(self.args) - 1:
-                    offset = len(self.args) - 1
+            for x in range(len(wlocals)):
+                if self.lastisargs and x == len(wlocals) - 1:
+                    offset = len(wlocals) - 1
 
-                    argscode.append(cleanRest(argsv.Slice1(tr.Const(offset))
-                                              .StoreLocal(self.argsname.getName())))
+                    argscode.append(tr.Do(wlocals[x].StoreLocal(argsv.Slice1(tr.Const(x))),
+                        wlocals[x].StoreLocal(cleanRest(wlocals[x]))))
+
                 else:
-                    argscode.append(argsv.Subscript(tr.Const(x))
-                                    .StoreLocal(self.args[x]))
+                    argscode.append(wlocals[x].StoreLocal(argsv.Subscript(tr.Const(x))))
+                        
 
-            for x in self.locals:
-                comp.pushAlias(x, tr.Argument(x.getName()))
+            for x in wlocals:
+                comp.pushAlias(symbol(x.name),x)
 
 
             bodycode = compileImplcitDo(comp, body).Return()
@@ -546,7 +548,7 @@ class MultiFn(object):
 def compileMultiFn(comp, name, form):
     s = form
     argdefs = []
-    argsv = tr.Argument("__argsv__")
+    argsv = tr.RestArgument("__argsv__")
     while s is not None:
         argdefs.append(MultiFn(comp, s.first(), argsv))
         s = s.next()
