@@ -195,6 +195,8 @@
            clojure.lang.persistentlist/EMPTY
            (.cons coll x))))
 
+(def f (fn [x] (loop [r x] (recur r))))
+
 (def
  ^{:arglists '([coll x] [coll x & xs])
    :doc "conj[oin]. Returns a new collection with the xs 'added'. (conj nil
@@ -207,6 +209,8 @@
           (py/if (nil? xs)
             (conj coll x)
             (recur (conj coll x) (first xs) (next xs))))))
+
+
 
 (def
  ^{:arglists '([map key val] [map key val & kvs])

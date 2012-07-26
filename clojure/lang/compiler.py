@@ -258,51 +258,44 @@ def compileKWApply(comp, form):
 
 @register_builtin("loop*")
 def compileLoopStar(comp, form):
-    if len(form) < 3:
-        raise CompilerException("loop* takes at least two args", form)
-    form = form.next()
-    if not isinstance(form.first(), PersistentVector):
-        raise CompilerException(
-            "loop* takes a vector as it's first argument", form)
-    s = form.first()
-    args = []
-    code = []
-    idx = 0
-    while idx < len(s):
-        if len(s) - idx < 2:
+    with ResolutionContext(comp):
+        if len(form) < 3:
+            raise CompilerException("loop* takes at least two args", form)
+        form = form.next()
+        if not isinstance(form.first(), PersistentVector):
             raise CompilerException(
-                "loop* takes a even number of bindings", form)
-        local = s[idx]
-        if not isinstance(local, Symbol) or local.ns is not None:
-            raise CompilerException(
-                "bindings must be non-namespaced symbols", form)
+                "loop* takes a vector as it's first argument", form)
+        s = form.first()
+        args = []
+        vars = []
 
-        idx += 1
+        code = []
+        idx = 0
+        while idx < len(s):
+            if len(s) - idx < 2:
+                raise CompilerException(
+                    "loop* takes a even number of bindings", form)
+            local = s[idx]
+            if not isinstance(local, Symbol) or local.ns is not None:
+                raise CompilerException(
+                    "bindings must be non-namespaced symbols", form)
 
-        body = s[idx]
-        if local in comp.aliases:
-            newlocal = symbol("{0}_{1}".format(local, RT.nextID()))
-            code.extend(comp.compile(body))
-            comp.pushAlias(local, RenamedLocal(newlocal))
-            args.append(local)
-        else:
-            comp.pushAlias(local, RenamedLocal(local))
-            args.append(local)
-            code.extend(comp.compile(body))
+            idx += 1
 
-        code.extend(comp.getAlias(local).compileSet(comp))
-        idx += 1
+            body = s[idx]
 
-    form = form.next()
-    recurlabel = Label("recurLabel")
-    recur = {"label": recurlabel,
-             "args": map(lambda x: comp.getAlias(x).compileSet(comp), args)}
-    code.append((recurlabel, None))
-    comp.pushRecur(recur)
-    code.extend(compileImplcitDo(comp, form))
-    comp.popRecur()
-    comp.popAliases(args)
-    return code
+            if local in comp.aliases:
+                newlocal = symbol("{0}_{1}".format(local, RT.nextID()))
+                comp.pushAlias(local, tr.Local(newlocal.getName()))
+            else:
+                comp.pushAlias(local, tr.Local(local.getName()))
+
+            args.append(comp.compile(body))
+            vars.append(comp.getAlias(local))
+
+            idx += 1
+
+        return compileImplcitDo(comp, form.next()).Loop(vars, args)
 
 
 @register_builtin("let*")
@@ -402,7 +395,7 @@ def compilePyIf(comp, form):
     cmp = comp.compile(form.next().first())
     body = comp.compile(form.next().next().first())
     if len(form) == 3:
-        body2 = [(LOAD_CONST, None)]
+        body2 = tr.Const(None)
     else:
         body2 = comp.compile(form.next().next().next().first())
 
@@ -519,7 +512,7 @@ class MultiFn(object):
             self.locals, self.args, self.lastisargs, self.argsname = unpackArgs(argv)
 
             wlocals = map(lambda x: tr.Argument(x.getName()), self.locals)
-            
+
             argcode = tr.GreaterOrEqual(
                 tr.Call(getAttrChain("__builtin__.len"), argsv),
                 tr.Const(len(self.args) - (1 if self.lastisargs else 0)))
@@ -533,7 +526,7 @@ class MultiFn(object):
 
                 else:
                     argscode.append(wlocals[x].StoreLocal(argsv.Subscript(tr.Const(x))))
-                        
+
 
             for x in wlocals:
                 comp.pushAlias(symbol(x.name),x)
@@ -579,8 +572,9 @@ def compileMultiFn(comp, name, form):
 def compileImplcitDo(comp, form):
     def cmpl(f):
         return comp.compile(f)
-
-    return tr.Do(*map(cmpl, form))
+    if form == None:
+        form = []
+    return tr.Do(*map(comp.compile, form))
 
 
 @register_builtin("fn*")

@@ -39,7 +39,7 @@ VERSION = "0.2.4"
 
 
 
-def requireClj(filename, stopafter="conj"):
+def requireClj(filename, stopafter="concat"):
     with open(filename) as fl:
         r = StringReader(fl.read())
 

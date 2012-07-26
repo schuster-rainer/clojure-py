@@ -65,7 +65,7 @@ class AExpression(object):
 
         code = ctx.stream.getvalue()
         if size != 0:
-            raise UnbalancedStackException("Unbalanced stack")
+            raise UnbalancedStackException("Unbalanced stack " + str(size))
 
         consts = [None] * (len(ctx.consts) + 1)
         for k, v in list(ctx.consts.items()):
@@ -217,7 +217,7 @@ class Const(AExpression):
 class StoreLocal(AExpression):
     def __init__(self, local, expr):
         assertAllExpressions([local, expr])
-        
+
         self.local = local
         self.expr = expr
     def size(self, current, max_seen):
@@ -529,6 +529,44 @@ class Func(AExpression):
     def __iter__(self):
         yield self.expr
 
+class Loop(AExpression):
+    def __init__(self, body, vars, args):
+        assertAllExpressions([body] + vars + args)
+        self.vars = vars
+        self.args = args
+        self.body = body
+        self.inits = []
+        assert len(vars) == len(args)
+
+        for x in range(len(self.vars)):
+            self.inits.append(self.vars[x].StoreLocal(self.args[x]))
+
+        self.inits = Do(*self.inits)
+
+
+    def size(self, current, max_seen):
+        current, max_seen = self.inits.size(current, max_seen)
+        #current -= 1
+        current, max_seen = self.body.size(current, max_seen)
+        return current, max_seen
+
+    def emit(self, ctx):
+        map(lambda x: x.emit(ctx), self.inits)
+
+        argints = map(lambda x: ctx.varnames[x], self.vars)
+        ctx.stream.write(struct.pack("=B", POP_TOP))
+
+        ctx.pushRecurPoint(argints)
+
+        self.body.emit(ctx)
+
+        ctx.popRecurPoint()
+
+
+
+
+
+
 class Recur(AExpression):
     def __init__(self, *args):
         self.args = args
@@ -750,7 +788,7 @@ class RecurPoint(object):
     def __init__(self, offset, args, next):
         self.next = next
         self.args = args
-        self.offset = 0
+        self.offset = offset
 
 
 
@@ -764,6 +802,11 @@ class Context(object):
         self.names = {}
         self.freevars = {}
         self.cellvars = []
+    def pushRecurPoint(self, args):
+        self.recurPoint = RecurPoint(self.stream.tell(), args, self.recurPoint)
+
+    def popRecurPoint(self):
+        self.recurPoint = self.recurPoint.next
 
 
 
