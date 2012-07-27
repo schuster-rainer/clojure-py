@@ -1232,14 +1232,11 @@ class Compiler(object):
                 return self.compilePropertyAccess(form)
             if form.first().name.startswith(".") and form.first().ns is None:
                 return self.compileMethodAccess(form)
-        c = [self.compile(form.first())]
+        c = self.compile(form.first())
         f = form.next()
+        f = f if f is not None else []
         acount = 0
-        while f is not None:
-            c.append(self.compile(f.first()))
-            acount += 1
-            f = f.next()
-        c = tr.Call(*c)
+        c = tr.Call(c, *map(self.compile, f))
 
         return c
 

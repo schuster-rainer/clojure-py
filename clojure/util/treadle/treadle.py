@@ -284,6 +284,10 @@ class If(AExpression):
         yield self.thenexpr
         yield self.elseexpr
 
+    def __repr__(self):
+        return "(If " + " ".join(map(repr, [self.condition, self.thenexpr, \
+                                                self.elseexpr])) + " )"
+
 
 class ABinaryOp(AExpression):
     def __init__(self, a, b, op):
@@ -350,6 +354,9 @@ class Do(AExpression):
             if last is not x:
                 ctx.stream.write(struct.pack("=B", POP_TOP))
 
+    def __repr__(self):
+        return "Do(" + ", ".join(map(repr, self.exprs)) + ")"
+
     def __iter__(self):
         for x in self.exprs:
             yield x
@@ -370,6 +377,9 @@ class Local(AExpression, IAssignable):
         idx = ctx.varnames[self]
 
         ctx.stream.write(struct.pack("=BH", LOAD_FAST, idx))
+
+    def __repr__(self):
+        return self.name
 
     def __iter__(self):
         raise StopIteration()
@@ -465,7 +475,7 @@ class Call(AExpression):
         ctx.stream.write(struct.pack("=BH", CALL_FUNCTION, len(self.exprs)))
 
     def __repr__(self):
-        return "Call(" + repr(self.method) + ", -> " + ", ".join(map(repr, self.exprs)) + ")"
+        return "(" + repr(self.method) + " " + " ".join(map(repr, self.exprs)) + ")"
 
     def __iter__(self):
         yield self.method
@@ -545,9 +555,7 @@ class Loop(AExpression):
 
 
     def size(self, current, max_seen):
-        current, max_seen = self.inits.size(current, max_seen)
-        #current -= 1
-        current, max_seen = self.body.size(current, max_seen)
+        current, max_seen = Do(self.inits, self.body).size(current, max_seen)
         return current, max_seen
 
     def emit(self, ctx):
@@ -562,7 +570,10 @@ class Loop(AExpression):
 
         ctx.popRecurPoint()
 
-
+    def __repr__(self):
+        return "Loop([" + ", ".join(map(repr, self.vars)) + "] [" \
+                    + ", ".join(map(repr, self.args)) + " ]" + \
+                     repr(self.body)
 
 
 
@@ -576,7 +587,7 @@ class Recur(AExpression):
         for x in self.args:
             current, max_seen = x.size(current, max_seen)
 
-        return current - len(self.args), max_seen
+        return current - len(self.args) + 1, max_seen
 
     def emit(self, ctx):
 
@@ -672,7 +683,7 @@ class Attr(AExpression):
         ctx.stream.write(struct.pack("=BH", LOAD_ATTR, idx))
 
     def __repr__(self):
-        return "Attr(" + self.name + ", " + repr(self.src) + ")"
+        return "(." + self.name + " " + repr(self.src) + ")"
 
     def __iter__(self):
         yield self.src
@@ -777,6 +788,8 @@ _initCompareOps()
 class Argument(Local):
     def __init__(self, name):
         Local.__init__(self, name)
+    def __repr__(self):
+        return "Argument(" + self.name + ")"
 
 
 class RestArgument(Argument):
