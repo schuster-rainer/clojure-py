@@ -32,7 +32,7 @@ class MetaImporter(object):
     def find_module(self, fullname, path=None):
         """Finds a clj file if there is no package with the same name.
         """
-        lastname = fullname.rsplit('.', 1)[-1]
+        lastname = fullname.rsplit(".", 1)[-1]
         for d in path or sys.path:
             clj = os.path.join(d, lastname + ".clj")
             pkg = os.path.join(d, lastname, "__init__.py")
@@ -63,6 +63,9 @@ class MetaImporter(object):
                 raise NoNamespaceException(self.path, name)
             sys.modules[name].__loader__ = self
         return sys.modules[name]
+
+    def is_package(self, name):
+        return False
 
 
 sys.meta_path.append(MetaImporter())

@@ -41,8 +41,9 @@ class Namespace(ModuleType):
 def findNS(name, fromns=None):
     """Finds a namespace, possibly as an defined as an alias in another one.
     """
-    if name in getattr(fromns, "__aliases__", {}):
-        return fromns.__aliases__[name]
+    symbol_name = Symbol(name)
+    if symbol_name in getattr(fromns, "__aliases__", {}):
+        return fromns.__aliases__[symbol_name]
     return sys.modules.get(str(name))
 
 
