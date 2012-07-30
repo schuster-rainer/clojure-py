@@ -33,7 +33,7 @@ class MetaImporter(object):
         """Finds a clj file if there is no package with the same name.
         """
         lastname = fullname.rsplit(".", 1)[-1]
-        for d in path or sys.path:
+        for d in path or ["."] + sys.path:
             clj = os.path.join(d, lastname + ".clj")
             pkg = os.path.join(d, lastname, "__init__.py")
             pkgc = getattr(imp, "cache_from_source",
