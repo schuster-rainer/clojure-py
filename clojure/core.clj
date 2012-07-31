@@ -3735,7 +3735,7 @@
 (require 'multiprocessing.pool)
 (def solo-executor (multiprocessing.pool/ThreadPool))
 
-(defn future-call 
+(defn future-call
   "Takes a function of no args and yields a future object that will
   invoke the function in another thread, and will cache the result and
   return it on all subsequent calls to deref/@. If the computation has
@@ -3744,6 +3744,8 @@
   [f]
   (let [res (.apply_async solo-executor f)]
     (reify
+      IPending
+       (isRealized [_] (.ready res))
       clojure.lang.ideref/IDeref
        (deref [_] (.get res)))))
 
