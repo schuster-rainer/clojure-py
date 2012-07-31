@@ -797,11 +797,41 @@ class RestArgument(Argument):
         Local.__init__(self, name)
 
 
+class LineNo(AExpression):
+    def __init__(self, expr, lineno):
+        assert isinstance(lineno, int)
+        assertExpression(expr)
+
+        self.expr = expr
+        self.lineno = lineno
+
+    def size(self, current, max_size):
+        return self.expr.size(current, max_size)
+
+    def emit(self, cxt):
+        if ctx.lastlineno is None:
+            ctx.lastlineno = self.lineno
+            ctx.lastbc = ctx.stream.tell()
+            ctx.startlineno = ctx.lastlineno
+        else:
+            bcoffset = ctx.stream.tell() - ctx.lastbc
+            linenooffset = ctx.lineno - ctx.lastlineno
+
+            assert bcoffset <= 255 and bcoffset >= 0
+            assert lineoffset <= 255 and lineoffset >= 0
+
+            ctx.stream.write(struct.pack("=BB", bcoffset, lineoffset))
+
+        self.expr.emit(ctx)
+
+
 class RecurPoint(object):
     def __init__(self, offset, args, next):
         self.next = next
         self.args = args
         self.offset = offset
+
+
 
 
 
@@ -815,6 +845,12 @@ class Context(object):
         self.names = {}
         self.freevars = {}
         self.cellvars = []
+        self.linenotab = BytesIO()
+        self.lastlineno = None
+        self.startlineno = None
+        self.lastbc = None
+
+
     def pushRecurPoint(self, args):
         self.recurPoint = RecurPoint(self.stream.tell(), args, self.recurPoint)
 
