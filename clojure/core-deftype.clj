@@ -88,66 +88,59 @@
 (defmacro reify
   "reify is a macro with the following structure:
 
- (reify options* specs*)
+  (reify specs*)
 
-  Currently there are no options.
+  Each spec consists of the protocol or superclass name followed by zero or
+  more method bodies:
 
-  Each spec consists of the protocol or interface name followed by zero
-  or more method bodies:
-
-  protocol-or-interface-or-Object
+  protocol-or-superclass
   (methodName [args+] body)*
 
-  Methods should be supplied for all methods of the desired
-  protocol(s) and interface(s). You can also define overrides for
-  methods of Object. Note that the first parameter must be supplied to
-  correspond to the target object ('this' in Java parlance). Thus
-  methods for interfaces will take one more argument than do the
-  interface declarations.  Note also that recur calls to the method
-  head should *not* pass the target object, it will be supplied
+  Methods should be supplied for all methods of the desired protocols. You can
+  also define overrides for methods of any superclass (i.e., define arbitrary
+  methods). Note that the first parameter must be supplied to correspond to the
+  target object ('self' in Python parlance). Note also that recur calls to the
+  method head should *not* pass the target object, it will be supplied
   automatically and can not be substituted.
 
-  The return type can be indicated by a type hint on the method name,
-  and arg types can be indicated by a type hint on arg names. If you
-  leave out all hints, reify will try to match on same name/arity
-  method in the protocol(s)/interface(s) - this is preferred. If you
-  supply any hints at all, no inference is done, so all hints (or
-  default of Object) must be correct, for both arguments and return
-  type. If a method is overloaded in a protocol/interface, multiple
-  independent method definitions must be supplied.  If overloaded with
-  same arity in an interface you must specify complete hints to
-  disambiguate - a missing hint implies Object.
-
-  recur works to method heads The method bodies of reify are lexical
-  closures, and can refer to the surrounding local scope:
+  recur works to method heads. The method bodies of reify are lexical closures,
+  and can refer to the surrounding local scope:
 
   (str (let [f \"foo\"]
-       (reify Object
-         (toString [this] f))))
+         (reify py/object
+           (__str__ [self] f))))
   == \"foo\"
 
   (seq (let [f \"foo\"]
-       (reify clojure.lang.Seqable
-         (seq [this] (seq f)))))
+         (reify clojure.protocols/Seqable
+           (seq [self] (seq f)))))
   == (\\f \\o \\o))
 
-  reify always implements clojure.lang.IObj and transfers meta
-  data of the form to the created object.
+  reify always implements clojure.lang.IObj and transfers meta data of the form
+  to the created object.
 
-  (meta ^{:k :v} (reify Object (toString [this] \"foo\")))
+  (meta ^{:k :v} (reify py/object (__str__ [self] \"foo\")))
   == {:k :v}"
   {:added "1.2"}
   [& opts+specs]
-    (let [[interfaces methods] (parse-opts+specs opts+specs)
-          methods (zipmap (map name (keys methods))
-                          (map #(cons 'fn %) (vals methods)))]
-         `(let [~'type (py/type ~"nm"
-                               (py/tuple ~(vec (concat interfaces [py/object])))
-                               (.toDict ~methods))]
-
-                ~@(map (fn [x] `(clojure.lang.protocol/extendForType ~x ~'type))
-                               interfaces)
-                  (~'type))))
+  (let [[interfaces methods] (parse-opts+specs opts+specs)
+        ; the __name__ of the methods are initially set to "_" to avoid
+        ; capturing calls and creating an infinite loop if the method delegates
+        ; to the same protocol function.
+        methods (zipmap (map name (keys methods))
+                        (map #(cons 'fn (cons '_ %)) (map next (vals methods))))]
+    `(let [~'type (py/type ~(name (gensym "reified"))
+                           (py/tuple ~(vec (concat interfaces [py/object])))
+                           (.toDict ~methods))]
+       ; setting __name__ back to its expected value
+       ~@(map (fn [name]
+                `(py/setattr (.-__func__ (py/getattr ~'type ~name))
+                             "__name__" ~name))
+              (keys methods))
+       ~@(map (fn [interface]
+                `(clojure.lang.protocol/extendForType ~interface ~'type))
+              interfaces)
+       (~'type))))
 
 (require 'copy)
 
