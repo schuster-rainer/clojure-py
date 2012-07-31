@@ -681,7 +681,7 @@ def compileVector(comp, form):
 
 @register_builtin("recur")
 def compileRecur(comp, form):
-    s = form.next()
+    s = form.next() or []
     code = []
     if len(s) > len(comp.recurPoint.first()["args"]):
         raise CompilerException("too many arguments to recur", form)
