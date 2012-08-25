@@ -3849,3 +3849,10 @@
       (if (identical? ex form)
         form
         (macroexpand ex))))
+
+(require 'time)
+(defmacro time [expr]
+  `(let [start# (time/clock)
+         ret# ~expr]
+     (prn (str "Elapsed time: " (py/round (* (- (time/clock) start#) 1000) 3) " msecs"))
+     ret#))
