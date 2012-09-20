@@ -24,7 +24,7 @@ class AExpression(object):
     def __init__(self):
         pass
 
-    def toCode(self, filename = "<string>"):
+    def toCode(self, name = "", filename = "<string>"):
         print "----"
         expr = self
 
@@ -97,7 +97,7 @@ class AExpression(object):
         print freevars, "freevars", ctx.cellvars, "cellvars"
         c = newCode(co_code = code, co_stacksize = max_seen, co_consts = consts, co_varnames = varnames,
                     co_argcount = argcount, co_nlocals = len(varnames), co_names = names, co_flags = co_flags,
-                    co_freevars = freevars, co_cellvars = tuple(ctx.cellvars), filename = filename)
+                    co_freevars = freevars, co_cellvars = tuple(ctx.cellvars), filename = filename, name = name)
         import dis
         dis.dis(c)
         print("---")
@@ -486,7 +486,8 @@ class Call(AExpression):
             yield x
 
 class Func(AExpression):
-    def __init__(self, args, expr, resolver = None):
+    def __init__(self, args, expr, resolver = None, name = ""):
+        self.name = name
         if resolver == None:
             resolver = lambda x: None
         self.resolver = resolver
@@ -508,16 +509,16 @@ class Func(AExpression):
         current += 1
         return current, max(max_seen, current)
 
-    def freeze(self, filename):
+    def freeze(self, name, filename):
         if self.value is None:
-            self.code = self.toCode(filename)
+            self.code = self.toCode(self.name, filename)
             self.value = Const(self.code)
 
             self.freeVars = self.code.co_freevars
 
 
     def emit(self, ctx):
-        self.freeze(ctx.filename)
+        self.freeze(self.name, ctx.filename)
 
         if self.freeVars:
             for x in self.freeVars:

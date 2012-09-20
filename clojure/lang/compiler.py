@@ -485,7 +485,7 @@ def compileFn(comp, name, form, orgform):
         else:
             expr = compileImplcitDo(comp, form.next())
 
-        return tr.Func(trargs, expr, resolved)
+        return tr.Func(trargs, expr, resolved, name = str(name))
 
 
 def cleanRest(local):
