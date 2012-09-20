@@ -1382,7 +1382,7 @@ class Compiler(object):
 
         pushThreadBindings(
             {findItem(findOrCreateNamespace("clojure.core"), _NS_): ns})
-        retval = code.toFunc(ns.__dict__)()
+        retval = code.toFunc(ns.__dict__, filename = self.filename)()
         self.getNS().__file__ = self.filename
         popThreadBindings()
         return retval

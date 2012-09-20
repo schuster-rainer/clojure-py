@@ -24,7 +24,7 @@ class AExpression(object):
     def __init__(self):
         pass
 
-    def toCode(self):
+    def toCode(self, filename = "<string>"):
         print "----"
         expr = self
 
@@ -58,7 +58,7 @@ class AExpression(object):
         recurlocals = reversed(range(len(locals)))
 
         rp = RecurPoint(0, recurlocals, None)
-        ctx = Context(rp, locals)
+        ctx = Context(rp, locals, filename = filename)
 
 
         expr.emit(ctx)
@@ -97,16 +97,19 @@ class AExpression(object):
         print freevars, "freevars", ctx.cellvars, "cellvars"
         c = newCode(co_code = code, co_stacksize = max_seen, co_consts = consts, co_varnames = varnames,
                     co_argcount = argcount, co_nlocals = len(varnames), co_names = names, co_flags = co_flags,
-                    co_freevars = freevars, co_cellvars = tuple(ctx.cellvars))
+                    co_freevars = freevars, co_cellvars = tuple(ctx.cellvars), filename = filename)
         import dis
         dis.dis(c)
         print("---")
         return c
 
-    def toFunc(self, globals = None):
+    def setLineNo(self, lineno):
+        self._lineno = lineno
+
+    def toFunc(self, globals = None, filename = "<string>"):
         if globals is None:
             globals = {}
-        c = self.toCode()
+        c = self.toCode(filename)
         return types.FunctionType(c, globals)
 
     def __getattr__(self, name):
@@ -505,16 +508,16 @@ class Func(AExpression):
         current += 1
         return current, max(max_seen, current)
 
-    def freeze(self):
+    def freeze(self, filename):
         if self.value is None:
-            self.code = self.toCode()
+            self.code = self.toCode(filename)
             self.value = Const(self.code)
 
             self.freeVars = self.code.co_freevars
 
 
     def emit(self, ctx):
-        self.freeze()
+        self.freeze(ctx.filename)
 
         if self.freeVars:
             for x in self.freeVars:
@@ -837,7 +840,7 @@ class RecurPoint(object):
 
 class Context(object):
     """defines a compilation context this keeps track of locals, output streams, etc"""
-    def __init__(self, recurPoint, varnames = {}):
+    def __init__(self, recurPoint, varnames = {}, filename = "<string>"):
         self.stream = BytesIO()
         self.consts = {}
         self.varnames = varnames
@@ -849,6 +852,7 @@ class Context(object):
         self.lastlineno = None
         self.startlineno = None
         self.lastbc = None
+        self.filename = filename
 
 
     def pushRecurPoint(self, args):
