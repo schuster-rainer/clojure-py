@@ -872,3 +872,11 @@
     (a/assert-equal (reset! x []) [])
     (a/assert-equal (swap! x conj 1) [1])
     (a/assert-equal (swap! x conj 2 3 4 5 6) [1 2 3 4 5 6])))
+
+(deftest replace-tests
+    (let [smap {:a "z" :b "y"}]
+        (a/assert-equal (count (replace smap {:one "one" :a "a"})) 2)
+        (a/assert-equal (first (replace smap {:one "one" :a "a"})) [:a "a"])
+        (a/assert-equal (second (replace smap {:one "one" :a "a"})) [:one "one"])
+        (a/assert-equal (replace smap [:one "one" :a "a"]) [:one "one" "z" "a"])
+        (a/assert-equal (replace smap [:one "one" :c "c"]) [:one "one" :c "c"])))
