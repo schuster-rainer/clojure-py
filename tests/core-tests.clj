@@ -880,3 +880,7 @@
         (a/assert-equal (second (replace smap {:one "one" :a "a"})) [:one "one"])
         (a/assert-equal (replace smap [:one "one" :a "a"]) [:one "one" "z" "a"])
         (a/assert-equal (replace smap [:one "one" :c "c"]) [:one "one" :c "c"])))
+
+(deftest reductions-tests
+    (a/assert-equal (reductions + [1 2 3 4 5]) [1 3 6 10 15])
+    (a/assert-equal (reductions * 2 [1 2 3 4 5]) [2 2 4 12 48 240]))
