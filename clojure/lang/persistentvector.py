@@ -118,6 +118,9 @@ class PersistentVector(APersistentVector):
 
         raise IndexOutOfBoundsException()
 
+    def assoc(self, i, val):
+        return self.assocN(i, val)
+
     def __len__(self):
         """Return the number of items in this vector."""
         return self._cnt

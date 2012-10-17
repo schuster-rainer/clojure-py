@@ -58,6 +58,13 @@ class TestPersistentVector(unittest.TestCase):
     def testAssocN_PASS(self):
         for k, v in testAssocNMap_PASS.items():
             self.assertEqual(k, v)
+    # assoc()
+    def testAssoc_PASS(self):
+        for k, v in testAssocMap_PASS.items():
+            self.assertEqual(k, v)
+    def testAssoc_FAIL(self):
+        v = pv.vec([])
+        self.assertRaises(IndexOutOfBoundsException, v.assoc, 2, uobj)
     def testAssocN_FAIL(self):
         v = pv.vec([])
         self.assertRaises(IndexOutOfBoundsException, v.assocN, 2, uobj)
@@ -177,6 +184,18 @@ testAssocNMap_PASS = {
     # large-ish vec
     pv.vec(range(10000)).assocN(10000, uobj)[10000]: uobj,
     pv.vec(range(10000)).assocN(10000, None)[10000]: None,
+    }
+
+testAssocMap_PASS = {
+    # modify
+    pv.vec([0]).assoc(0, uobj)[0]: uobj,
+    pv.vec([0]).assoc(0, None)[0]: None,
+    # append
+    pv.vec([]).assoc(0, uobj)[0]: uobj,
+    pv.vec([]).assoc(0, None)[0]: None,
+    # large-ish vec
+    pv.vec(range(10000)).assoc(10000, uobj)[10000]: uobj,
+    pv.vec(range(10000)).assoc(10000, None)[10000]: None,
     }
 
 testLenMap_PASS = {
