@@ -114,7 +114,7 @@ class PersistentHashMap(APersistentMap, IEditableCollection, IObj):
 
     def entryAt(self, key, notFound = None):
         val = self.root.find(0, hash(key), key, notFound) if self.root is not None else notFound
-        return MapEntry(key, val)
+        return MapEntry(key, val) if val is not None else None
 
     def seq(self):
         s =  self.root.nodeSeq() if self.root is not None else None
