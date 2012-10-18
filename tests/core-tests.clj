@@ -882,3 +882,18 @@
 (deftest reductions-tests
     (a/assert-equal (reductions + [1 2 3 4 5]) [1 3 6 10 15])
     (a/assert-equal (reductions * 2 [1 2 3 4 5]) [2 2 4 12 48 240]))
+
+(deftest try-tests
+    (a/assert-equal (try) nil)
+    (a/assert-equal (try :a) :a)
+    (a/assert-equal (try :a :b :c) :c)
+    (a/assert-equal (try #(:a) :b :c (finally :d)) :c)
+    (a/assert-equal (try :a :b :c (finally :d)) :c)
+    (a/assert-equal (try :a :b :c (finally :d)) :c)
+    (a/assert-equal (try :a (catch Exception e :c)) :a)
+    (a/assert-equal (try :a :b (catch Exception e :c)) :b)
+    (a/assert-equal (try (throw Exception) (catch Exception e :b)) :b)
+    (a/assert-equal (try :a (throw Exception) (catch Exception e :b)) :b)
+    (a/assert-equal (try :a :b (finally :z)) :b)
+    (a/assert-equal (try :a :b (catch Exception e :c) (finally :z)) :b)
+    (a/assert-equal (try :a :b (throw Exception) (catch Exception e :c) (finally :z)) :c))

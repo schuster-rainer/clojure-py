@@ -808,26 +808,31 @@ def compileTry(comp, form):
         # I don't like this, but (try) == nil
         return [(LOAD_CONST, None)]
 
-    # Extract the thing that may raise exceptions
-    body = form.first()
-
+    # Keep a list of compiled might-throw statements in
+    # implicit-do try body
+    body = comp.compile(form.first())
     form = form.next()
+
     if not form:
-        # If there are no catch/finally/else etc statements, just
-        # compile the budy
-        return comp.compile(body)
+        # If there are no further body statements, or
+        # catch/finally/else etc statements, just
+        # compile the body
+        return body
 
     catch = []
     els = None
     fin = None
     for subform in form:
-        # FIXME, could also be a Cons, LazySeq, etc.
-        #if not isinstance(subform, IPersistentList):
-        #    raise CompilerException("try arguments must be lists", form)
-        if not len(subform):
-            raise CompilerException("try arguments must not be empty", form)
-        name = subform.first()
-        if name in (Symbol("catch"), Symbol("except")):
+        length = 0
+        name = ""
+        try:
+            length = len(subform)
+            if length:
+                name = subform.first()
+        except:
+            pass
+        if length and name in (Symbol("catch"), Symbol("except")):
+            name = subform.first()
             if len(subform) != 4:
                 raise CompilerException(
                     "try {0} blocks must be 4 items long".format(name), form)
@@ -850,7 +855,7 @@ def compileTry(comp, form):
                     format(name), form)
             val = subform.next().next().next().first()
             catch.append((exception, var, val))
-        elif name == Symbol("else"):
+        elif length and name == Symbol("else"):
             if len(subform) != 2:
                 raise CompilerException(
                     "try else blocks must be 2 items", form)
@@ -858,7 +863,7 @@ def compileTry(comp, form):
                 raise CompilerException(
                     "try cannot have multiple els blocks", form)
             els = subform.next().first()
-        elif name == Symbol("finally"):
+        elif length and name == Symbol("finally"):
             if len(subform) != 2:
                 raise CompilerException(
                     "try finally blocks must be 2 items", form)
@@ -867,21 +872,25 @@ def compileTry(comp, form):
                     "try cannot have multiple finally blocks", form)
             fin = subform.next().first()
         else:
-            raise CompilerException(
-                "try does not accept any symbols apart from "
-                "catch/except/else/finally, got {0}".format(form), form)
+            # Append to implicit do
+            body.append((POP_TOP, None))
+            body.extend(comp.compile(subform))
 
     if fin and not catch and not els:
-        return compileTryFinally(comp.compile(body), comp.compile(fin))
+        return compileTryFinally(body, comp.compile(fin))
     elif catch and not fin and not els:
-        return compileTryCatch(comp, comp.compile(body), catch)
+        return compileTryCatch(comp, body, catch)
     elif not fin and not catch and els:
         raise CompilerException(
             "try does not accept else statements on their own", form)
 
     if fin and catch and not els:
-        return compileTryCatchFinally(comp, comp.compile(body), catch,
+        return compileTryCatchFinally(comp, body, catch,
                                       comp.compile(fin))
+
+    if not fin and not catch and not els:
+        # No other statements, return compiled body
+        return body
 
 def compileTryFinally(body, fin):
     """
