@@ -875,9 +875,7 @@
 
 (deftest replace-tests
     (let [smap {:a "z" :b "y"}]
-        (a/assert-equal (count (replace smap {:one "one" :a "a"})) 2)
-        (a/assert-equal (first (replace smap {:one "one" :a "a"})) [:a "a"])
-        (a/assert-equal (second (replace smap {:one "one" :a "a"})) [:one "one"])
+        (= (apply hash-map (apply concat (replace {:a "z" :b "y"} {:one "one" :a "a"}))) {:one "one" :a "a"})
         (a/assert-equal (replace smap [:one "one" :a "a"]) [:one "one" "z" "a"])
         (a/assert-equal (replace smap [:one "one" :c "c"]) [:one "one" :c "c"])))
 
