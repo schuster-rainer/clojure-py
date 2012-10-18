@@ -897,3 +897,9 @@
     (a/assert-equal (try :a :b (finally :z)) :b)
     (a/assert-equal (try :a :b (catch Exception e :c) (finally :z)) :b)
     (a/assert-equal (try :a :b (throw Exception) (catch Exception e :c) (finally :z)) :c))
+
+(deftest with-redefs-tests
+    (a/assert-equal (class []) (type []))
+    (a/assert-equal (with-redefs [class (constantly nil)]
+                      (class [])) nil)
+    (a/assert-equal (class []) (type []))) ; Make sure variables are restored properly by with-redefs
