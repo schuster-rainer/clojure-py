@@ -823,7 +823,6 @@ def compileTry(comp, form):
     els = None
     fin = None
     for subform in form:
-        name = ""
         try:
             name = subform.first()
         except AttributeError:
