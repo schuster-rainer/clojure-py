@@ -823,15 +823,12 @@ def compileTry(comp, form):
     els = None
     fin = None
     for subform in form:
-        length = 0
         name = ""
         try:
-            length = len(subform)
-            if length:
-                name = subform.first()
-        except:
-            pass
-        if length and name in (Symbol("catch"), Symbol("except")):
+            name = subform.first()
+        except AttributeError:
+            name = None
+        if name in (Symbol("catch"), Symbol("except")):
             name = subform.first()
             if len(subform) != 4:
                 raise CompilerException(
@@ -855,7 +852,7 @@ def compileTry(comp, form):
                     format(name), form)
             val = subform.next().next().next().first()
             catch.append((exception, var, val))
-        elif length and name == Symbol("else"):
+        elif name == Symbol("else"):
             if len(subform) != 2:
                 raise CompilerException(
                     "try else blocks must be 2 items", form)
@@ -863,7 +860,7 @@ def compileTry(comp, form):
                 raise CompilerException(
                     "try cannot have multiple els blocks", form)
             els = subform.next().first()
-        elif length and name == Symbol("finally"):
+        elif name == Symbol("finally"):
             if len(subform) != 2:
                 raise CompilerException(
                     "try finally blocks must be 2 items", form)
