@@ -856,6 +856,15 @@
         not-found)))
   (__len__ [self]
     (py.bytecode/BINARY_SUBTRACT end off))
+  (nth
+    ([self i]
+      (py.bytecode/BINARY_SUBSCR array (py.bytecode/BINARY_ADD off i)))
+    ([self i not-found]
+      (if (py.bytecode/COMPARE_OP ">=" i 0)
+        (if (py.bytecode/COMPARE_OP "<" i (py/len self))
+          (py.bytecode/BINARY_SUBSCR array i)
+          not-found)
+        not-found)))
   (dropFirst [self]
     (if (= off end)
       (throw (IllegalStateException "dropFirst of empty chunk")))
